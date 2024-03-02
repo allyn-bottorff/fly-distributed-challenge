@@ -7,30 +7,32 @@ import (
 	maelstrom "github.com/jepsen-io/maelstrom/demo/go"
 )
 
+type BroadcastMessage struct {
+	MType string `json:"type"`
+	Message  int    `json:"message"`
+}
+
 func main() {
 
 	n := maelstrom.NewNode()
 
-	ch := make(chan []int)
+	state := make([]int, 0)
 
 	n.Handle("broadcast", func(msg maelstrom.Message) error {
 		body := make(map[string]any)
-		messageContents := make(map[string]any)
+		msgBody := new(BroadcastMessage)
 		body["type"] = "broadcast_ok"
-		if err := json.Unmarshal(msg.Body, &messageContents); err != nil {
+		if err := json.Unmarshal(msg.Body, &msgBody); err != nil {
 			return err
 		}
-		seenMessages := <-ch
-		seenMessages = append(seenMessages, messageContents["message"].(int))
-		ch <- seenMessages
+
+		state = append(state, msgBody.Message)
 		return n.Reply(msg, body)
 	})
 	n.Handle("read", func(msg maelstrom.Message) error {
 		body := make(map[string]any)
 		body["type"] = "read_ok"
-		messages := <-ch
-        ch <- messages
-		body["messages"] = messages
+		body["messages"] = state
 		return n.Reply(msg, body)
 	})
 	n.Handle("topology", func(msg maelstrom.Message) error {
